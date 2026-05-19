@@ -1,0 +1,78 @@
+# ============================================================
+# Docker Compose — AI Code Reviewer
+# Services: backend (FastAPI + SQLite), frontend (nginx)
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # FastAPI Backend (SQLite DB — no external database needed)
+  # ----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codereviewer_backend
+    restart: unless-stopped
+    environment:
+      # SQLite — stored inside the backend_data volume
+      DATABASE_URL: sqlite:////app/data/codereviewer.db
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      APP_ENV: ${APP_ENV:-production}
+      DEBUG: ${DEBUG:-false}
+    volumes:
+      # SQLite database file — persists across container restarts
+      - backend_data:/app/data
+      # Temp space for cloned repositories during scans
+      - repo_clones:/tmp/repo_clones
+    ports:
+      - "8000:8000"
+    networks:
+      - codereviewer_net
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ----------------------------------------------------------
+  # React Frontend (nginx static server + API proxy)
+  # ----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # nginx proxies /api/ -> backend, so use relative path
+        VITE_API_URL: ""
+    container_name: codereviewer_frontend
+    restart: unless-stopped
+    ports:
+      - "8069:80"
+    networks:
+      - codereviewer_net
+    depends_on:
+      backend:
+        condition: service_healthy
+
+# ============================================================
+# Named Volumes
+# ============================================================
+volumes:
+  backend_data:
+    driver: local
+    # SQLite .db file lives here inside the container at /app/data/
+
+  repo_clones:
+    driver: local
+    # Temporary cloned repos — cleared when container restarts
+
+
+    # ============================================================
+    # Networks
+    # ============================================================
+networks:
+  codereviewer_net:
+    driver: bridge
