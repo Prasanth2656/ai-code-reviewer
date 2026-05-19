@@ -1,0 +1,4 @@
+-- Optional: place SQL scripts here that run on first DB initialization.
+-- Example: CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- SQLAlchemy creates all tables automatically via Base.metadata.create_all()
+-- so this directory can stay empty.
